@@ -3,6 +3,11 @@ import openmeteo_requests
 import pandas as pd
 import requests_cache
 from retry_requests import retry
+from datetime import date, timedelta
+
+# Date
+fin = date.today() - timedelta(days=1)
+debut = fin - timedelta(days=30)
 
 # Configuer l'environnement en français
 try:
@@ -28,8 +33,8 @@ params = {
 	"hourly": ["temperature_2m", "relative_humidity_2m", "weather_code", "wind_speed_10m", "precipitation", "apparent_temperature"],
 	"models": "meteofrance_seamless",
 	"timezone": "auto",
-	"start_date": "2026-08-04",
-	"end_date": "2026-09-05",
+	"start_date": debut.isoformat(),
+	"end_date": fin.isoformat(),
 }
 responses = openmeteo.weather_api(url, params = params)
 
@@ -82,3 +87,4 @@ meteo_df["heure"] = meteo_df["date"].dt.time
 # Extraction du jour dans la colonne date
 meteo_df["jour"] = meteo_df["date"].dt.strftime("%d %B %Y")
 
+print(meteo_df.groupby("ville")["temperature_2m"].mean())

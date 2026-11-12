@@ -1,1 +1,3 @@
 .cache.sqlite
+.venv/
+.idea/
