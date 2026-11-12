@@ -1,19 +1,14 @@
-import locale
 import openmeteo_requests
 import pandas as pd
 import requests_cache
 from retry_requests import retry
 from datetime import date, timedelta
 
+# Extraction des données
+
 # Date
 fin = date.today() - timedelta(days=1)
 debut = fin - timedelta(days=30)
-
-# Configuer l'environnement en français
-try:
-    locale.setlocale(locale.LC_TIME, "fr_FR")
-except locale.Error:
-    print("La langue française n'est pas installé sur votre système")
 
 # Setup the Open-Meteo API client with cache and retry on error
 cache_session = requests_cache.CachedSession('.cache', expire_after = 3600)
@@ -81,10 +76,47 @@ for i, response in enumerate(responses):
 # Concatenation de tous les dataframes pour créer un dataframe final
 meteo_df = pd.concat(all_dataframes, ignore_index = True)
 
+# Transformation
+
 # Extraction de l'heure dans la colonne date
-meteo_df["heure"] = meteo_df["date"].dt.time
+meteo_df["heure"] = meteo_df["date"].dt.hour
 
 # Extraction du jour dans la colonne date
-meteo_df["jour"] = meteo_df["date"].dt.strftime("%d %B %Y")
+meteo_df["jour"] = meteo_df["date"].dt.date
 
-print(meteo_df.groupby("ville")["temperature_2m"].mean())
+# Codes météo selon le standard mondial WMO
+codes_meteo = {
+    0: "Ciel dégagé", 1: "Plutôt dégagé", 2: "Partiellement nuageux", 3: "Couvert",
+    45: "Brouillard", 48: "Brouillard givrant",
+    51: "Bruine légère", 53: "Bruine modérée", 55: "Bruine forte",
+    56: "Bruine verglaçante légère", 57: "Bruine verglaçante forte",
+    61: "Pluie faible", 63: "Pluie modérée", 65: "Pluie forte",
+    66: "Pluie verglaçante légère", 67: "Pluie verglaçante forte",
+    71: "Neige faible", 73: "Neige modérée", 75: "Neige forte", 77: "Grains de neige",
+    80: "Averses faibles", 81: "Averses modérées", 82: "Averses violentes",
+    85: "Averses de neige faibles", 86: "Averses de neige fortes",
+    95: "Orage", 96: "Orage avec grêle légère", 99: "Orage avec grêle forte",
+}
+
+meteo_df["weather_code"] = meteo_df["weather_code"].astype(int)
+meteo_df["conditions"] = meteo_df["weather_code"].map(codes_meteo)
+
+# Noms des colonnes en français
+meteo_df = meteo_df.rename(columns={
+   "temperature_2m": "temperature",
+    "apparent_temperature": "temperature_ressentie",
+    "relative_humidity_2m": "humidite",
+    "wind_speed_10m": "vitesse_vent",
+    "precipitation": "precipitations",
+    "weather_code": "code_meteo",
+})
+
+# Arrondi à 1 décimale
+colonnes_num = ["temperature", "temperature_ressentie", "humidite", "vitesse_vent", "precipitations"]
+meteo_df[colonnes_num] = meteo_df[colonnes_num].round(1)
+
+# Chargement des données
+
+meteo_sql = meteo_df.copy()
+meteo_sql["date"] = meteo_sql["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+meteo_sql["jour"] = meteo_sql["jour"].astype("str")
